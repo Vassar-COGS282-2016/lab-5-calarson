@@ -33,14 +33,34 @@
 
 sample.training.data <- data.frame(x=c(0.5,0.6), y=c(0.4,0.3), category=c(1,2))
 
+
 exemplar.memory.limited <- function(training.data, x.val, y.val, target.category, sensitivity, decay.rate){
-  return(NA)
-}
+  training.data$trial.number <- seq(1:(nrow(training.data)))
+  training.data$weight <-sapply(training.data$trial.number, function(trial.number){
+    return(1*decay.rate^(nrow(training.data)-trial.number))})
+  
+  distance <- function(x,y){
+    return(sqrt((x-x.val)^2 + (y-y.val)^2))
+  }
+  
+training.data$similarity <- mapply(function(weight, x, y){
+    return(weight*(exp(-sensitivity*(distance(x,y)))))},
+    training.data$weight, training.data$x , training.data$y)
+
+  
+  return(sum(subset(training.data, category==target.category)$similarity) / sum(training.data$similarity))
+}  
+
 
 # Once you have the model implemented, write the log-likelihood function for a set of data.
 # The set of data for the model will look like this:
 
-sample.data.set <- data.frame(x=c(0.5,0.6,0.4,0.5,0.3), y=c(0.4,0.3,0.6,0.4,0.5), category=c(1,2,2,1,2), correct=c(T,F,F,T,F))
+sample.data.set <- data.frame(x=c(0.5,0.6,0.4,0.5,0.3), y=c(0.4,0.3,0.6,0.4,0.5), 
+                              category=c(1,2,2,1,2), correct=c(T,F,F,T,F))
+
+example.probability<-exemplar.memory.limited(sample.data.set, 0.5, 0.4,
+                                                      1, 0.5, 0.8)
+
 
 # In our hypothetical experiment, we are training and testing at the same time. This is important
 # for a model like this, because the model depends on the order in which examples are shown.
@@ -52,6 +72,7 @@ sample.data.set[0:3,]
 # and the test item will be
 
 sample.data.set[4,]
+sample.data.set[0:0,]
 
 # So, you need to treat each row of all.data as a test item, and find the training set for it
 # to give to your model. It may be easier to do this with a for loop than mapply(), though it
@@ -60,5 +81,29 @@ sample.data.set[4,]
 # Don't forget that decay rate should be between 0 and 1, and that sensitivity should be > 0.
 
 exemplar.memory.log.likelihood <- function(all.data, sensitivity, decay.rate){
-  return(NA)
-}
+  sum.log<-0
+  for(i in 1:nrow(all.data)){
+    if(i==1){
+      sum.log=sum.log+log(0.5)
+    }else{
+      test.point.x<-all.data[i,]$x
+      test.point.y<-all.data[i,]$y
+      cat<-all.data[i,]$category
+      response<-all.data[i,]$correct
+      training.data<-all.data[1:(i-1),]
+      prob<-exemplar.memory.limited(training.data, test.point.x, test.point.y, cat, sensitivity, decay.rate)
+    
+      individual.likelihood<-function(resp, probability){
+        if(resp == T){
+        return(probability)
+          }else{
+          return(1-probability)
+          }
+      }
+    sum.log= sum.log+log(individual.likelihood(response, prob))
+      }
+      }
+  return(-1*sum.log)
+  }
+
+exemplar.memory.log.likelihood(sample.data.set, 0.5, 0.8)
